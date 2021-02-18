@@ -1,0 +1,19 @@
+{
+  "name": "youauth",
+  "version": "1.0.0",
+  "description": "Login authentication using facial recognition.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "face_recognition",
+    "face-api.js"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tensorflow/tfjs-node": "^1.7.0",
+    "face-api.js": "^0.22.2"
+  }
+}
