@@ -1,6 +1,7 @@
 const faceAPI = require('face-api.js');
 // Not required, but makes the code faster by connecting to a tensoflow node backend.
 const tf = require('@tensorflow/tfjs-node');
+const { createCanvas, createImageData, Image } = require('canvas');
 const fs = require('fs');
 const path = require('path');
 
@@ -19,9 +20,9 @@ async function loadModels(){
 // FaceRecognizer Object constructor.
 function FaceRecognizer(){
   // Minimum confidence for valid face. Higher means less chance of bad face detections (less accurate face descriptors).
-  this.minConfidence = 0.9;
+  this.minConfidence = 0.8;
   // The euclidean distance threshold. Lower means faceMatcher will look for more accurate match.
-  this.distanceThreshold = 0.5;
+  this.distanceThreshold = 0.6;
   // Use SSD MobileNet Face Detection for higher accuracy. Uses minConfidence to set face detection threshold.
   this.options = new faceAPI.SsdMobilenetv1Options({minConfidence: this.minConfidence });
 }
@@ -155,39 +156,81 @@ FaceRecognizer.prototype.saveImageFile = function saveImageFile(fileName, imageD
 }
 
 // Creates tensor out of image data.
-FaceRecognizer.prototype.loadImage = async function loadImage(filePath){
+FaceRecognizer.prototype.loadImage = async function loadImage(fileName){
+
+  const filePath = "images/" + fileName;
+
   // Read file as buffer.
   const buf = fs.readFileSync(filePath);
-  // Create tensor out of buffer using tfjs-node decodeImage function.
-  tensor = tf.node.decodeImage(buf).resizeBilinear([512,512]);
+  /*
+    Create tensor out of buffer using tfjs-node decodeImage function.
+    Arguments: Uint8Array (decoded image), color channel (default 0), data type (only int32 supported)
+  */
+  tensor = tf.node.decodeImage(buf, 3, 'int32');
   return tensor;
+}
+
+FaceRecognizer.prototype.loadImageData = async function loadImageData (data) {
+
+  var data = data.replace(/^data:image\/\w+;base64,/, "");
+
+  var buf = Buffer.from(data, 'base64');
+
+  tensor = tf.node.decodeImage(buf, 3, 'int32');
+  return tensor;
+}
+
+// Saves tensor as JPG image file.
+FaceRecognizer.prototype.saveImageJPG = function saveImageJPG(tensor, fileName) {
+
+  const filePath = "images/" + fileName;
+
+  tf.node.encodeJpeg(tensor).then ( (fileData) => {
+    fs.writeFileSync(filePath, fileData);
+  });
+
 }
 
 /* Draw matches on image. Takes matches from getMatches() and results from detect().
    The outputCanvas is from createCanvas().
    Handy for seeing the outcome of the detection results. */
-FaceRecognizer.prototype.drawFaceDetections = function drawFaceDetections(matches, results, outputCanvas){
+FaceRecognizer.prototype.drawFaceDetections = async function drawFaceDetections(matches, results, tensor){
+
+  const data = await tf.node.encodeJpeg(tensor);
+
+  var buf = Buffer.from(data, 'base64');
+
+  const newCanvas = createCanvas(tensor.shape[1], tensor.shape[0]);
+
+  const image = new Image;
+
+  image.onload = function () {
+    newCanvas.getContext("2d").drawImage(image, 0, 0);
+  };
+
+  image.src = buf;
+
   // For each match object in matches.
   matches.forEach((match, i) => {
     // Grab associated bounding box from the face detection in results.
     const box = results[i].detection.box;
     // Get label associated with match. Unknown faces with no label are 'unknown' by default.
     const label = match.toString();
-    // Create new DrawBox object with the bounding box and the label.
-    const drawBox = new faceAPI.draw.DrawBox(box, {label:label});
-    // Draw onto the output canvas.
-    drawBox.draw(outputCanvas);
-  });
-  return outputCanvas;
-}
 
-// Creates a canvas from an Image object provided by the canvas module.
-function createCanvas(img){
-  return faceAPI.createCanvasFromMedia(img);
+    const ctx = newCanvas.getContext("2d");
+
+    ctx.strokeStyle = "blue";
+    ctx.font = '10px sans';
+    ctx.strokeText(label, box._x + 10, box._y - 5);
+    ctx.strokeRect(box._x, box._y, box._width, box._height);
+  });
+
+  const dataURL = newCanvas.toDataURL();
+
+  return this.loadImageData(dataURL);
 }
 
 module.exports = {
   FaceRecognizer: FaceRecognizer,
-  createCanvas: createCanvas,
-  loadModels: loadModels,
+  loadModels: loadModels
 }

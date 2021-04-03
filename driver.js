@@ -1,4 +1,4 @@
-const youauth = require('./node_modules/youauth');
+const youauth = require('./youauth');
 
 async function main(){
 
@@ -6,27 +6,30 @@ async function main(){
 
   const newRecognizer = new youauth.FaceRecognizer;
 
-  const refImages = ['images/biden.jpg'];
-  const labels = ['biden'];
+  const refImages = ['cap.jpg'];
+  const labels = ['cap'];
 
   const labeledFaceDescriptors = await newRecognizer.labelDescriptors(labels, refImages);
 
   console.log(labeledFaceDescriptors);
 
-  const targetImage = await newRecognizer.loadImage('images/test_image3.jpg');
-
-  console.log(targetImage);
+  const targetImage = await newRecognizer.loadImage('test_image7.jpg');
 
   let detectedResults = await newRecognizer.detect(targetImage);
-
-  console.log(detectedResults);
 
   let matches = newRecognizer.getMatches(detectedResults, labeledFaceDescriptors);
 
   let matchedLabels = newRecognizer.getMatchedLabels(matches);
 
-  console.log(matchedLabels);
+  const drawnTensor = await newRecognizer.drawFaceDetections(matches, detectedResults, targetImage);
 
+  console.log(drawnTensor);
+
+  newRecognizer.saveImageJPG(drawnTensor, "testTensorOutput2.jpg");
+
+  console.log(matches);
+
+  console.log(matchedLabels);
 }
 
 main();
