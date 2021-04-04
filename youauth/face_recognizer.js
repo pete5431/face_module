@@ -1,7 +1,7 @@
 const faceAPI = require('face-api.js');
 // Not required, but makes the code faster by connecting to a tensoflow node backend.
 const tf = require('@tensorflow/tfjs-node');
-const { createCanvas, createImageData, Image } = require('canvas');
+const { createCanvas, Image } = require('canvas');
 const fs = require('fs');
 const path = require('path');
 
@@ -22,7 +22,7 @@ function FaceRecognizer(){
   // Minimum confidence for valid face. Higher means less chance of bad face detections (less accurate face descriptors).
   this.minConfidence = 0.8;
   // The euclidean distance threshold. Lower means faceMatcher will look for more accurate match.
-  this.distanceThreshold = 0.6;
+  this.distanceThreshold = 0.63;
   // Use SSD MobileNet Face Detection for higher accuracy. Uses minConfidence to set face detection threshold.
   this.options = new faceAPI.SsdMobilenetv1Options({minConfidence: this.minConfidence });
 }
@@ -155,11 +155,9 @@ FaceRecognizer.prototype.saveImageFile = function saveImageFile(fileName, imageD
   fs.writeFileSync(path.resolve('./images', fileName), buf);
 }
 
-// Creates tensor out of image data.
-FaceRecognizer.prototype.loadImage = async function loadImage(fileName){
-
+// Creates tensor out of image file.
+FaceRecognizer.prototype.loadImageFile = async function loadImage(fileName){
   const filePath = "images/" + fileName;
-
   // Read file as buffer.
   const buf = fs.readFileSync(filePath);
   /*
@@ -170,21 +168,22 @@ FaceRecognizer.prototype.loadImage = async function loadImage(fileName){
   return tensor;
 }
 
+// Creates image from image data URI.
 FaceRecognizer.prototype.loadImageData = async function loadImageData (data) {
-
+  // Remove data header.
   var data = data.replace(/^data:image\/\w+;base64,/, "");
-
+  // Convert to buffer from base64.
   var buf = Buffer.from(data, 'base64');
-
+  // Create the tensor.
   tensor = tf.node.decodeImage(buf, 3, 'int32');
   return tensor;
 }
 
 // Saves tensor as JPG image file.
 FaceRecognizer.prototype.saveImageJPG = function saveImageJPG(tensor, fileName) {
-
+  // Default: images are saved in images folder.
   const filePath = "images/" + fileName;
-
+  // Create the JPEG file.
   tf.node.encodeJpeg(tensor).then ( (fileData) => {
     fs.writeFileSync(filePath, fileData);
   });
@@ -192,22 +191,19 @@ FaceRecognizer.prototype.saveImageJPG = function saveImageJPG(tensor, fileName) 
 }
 
 /* Draw matches on image. Takes matches from getMatches() and results from detect().
-   The outputCanvas is from createCanvas().
-   Handy for seeing the outcome of the detection results. */
+   The output is a tensor.
+   Handy for seeing the outcome of the detection results. REQUIRES CANVAS. */
 FaceRecognizer.prototype.drawFaceDetections = async function drawFaceDetections(matches, results, tensor){
-
+  // Obtain Uint8Array from tensor.
   const data = await tf.node.encodeJpeg(tensor);
-
   var buf = Buffer.from(data, 'base64');
-
+  // Create new canvas with width and length of tensor's shape.
   const newCanvas = createCanvas(tensor.shape[1], tensor.shape[0]);
-
   const image = new Image;
-
+  // When image src loads, draw the image onto the canvas.
   image.onload = function () {
     newCanvas.getContext("2d").drawImage(image, 0, 0);
   };
-
   image.src = buf;
 
   // For each match object in matches.
@@ -216,17 +212,18 @@ FaceRecognizer.prototype.drawFaceDetections = async function drawFaceDetections(
     const box = results[i].detection.box;
     // Get label associated with match. Unknown faces with no label are 'unknown' by default.
     const label = match.toString();
-
+    // Get canvas context.
     const ctx = newCanvas.getContext("2d");
-
+    // Define style.
     ctx.strokeStyle = "blue";
     ctx.font = '10px sans';
+    // Draw the box and label above it using the coordinates of detection box.
     ctx.strokeText(label, box._x + 10, box._y - 5);
     ctx.strokeRect(box._x, box._y, box._width, box._height);
   });
-
+  // Get dataURI of image.
   const dataURL = newCanvas.toDataURL();
-
+  // Convert to tensor using loadImageData function.
   return this.loadImageData(dataURL);
 }
 
