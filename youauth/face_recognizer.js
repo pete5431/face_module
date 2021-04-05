@@ -8,6 +8,9 @@ const path = require('path');
 // Path to the face detection, face recognition, etc. models.
 const modelPath = path.resolve(__dirname, './models');
 
+// Regex pattern for data uri.
+const isDataURI = /^\s*data:([a-z]+\/[a-z0-9\-]+(;[a-z\-]+\=[a-z\-]+)?)?(;base64)?,[a-z0-9\!\$\&\'\,\(\)\*\+\,\;\=\-\.\_\~\:\@\/\?\%\s]*\s*$/i;
+
 // Loads the models for face-api. Must be called first before using api.
 async function loadModels(){
   await faceAPI.nets.ssdMobilenetv1.loadFromDisk(modelPath);
@@ -155,32 +158,8 @@ FaceRecognizer.prototype.saveImageFile = function saveImageFile(fileName, imageD
   fs.writeFileSync(path.resolve('./images', fileName), buf);
 }
 
-// Creates tensor out of image file.
-FaceRecognizer.prototype.loadImageFile = async function loadImage(fileName){
-  const filePath = "images/" + fileName;
-  // Read file as buffer.
-  const buf = fs.readFileSync(filePath);
-  /*
-    Create tensor out of buffer using tfjs-node decodeImage function.
-    Arguments: Uint8Array (decoded image), color channel (default 0), data type (only int32 supported)
-  */
-  tensor = tf.node.decodeImage(buf, 3, 'int32');
-  return tensor;
-}
-
-// Creates image from image data URI.
-FaceRecognizer.prototype.loadImageData = async function loadImageData (data) {
-  // Remove data header.
-  var data = data.replace(/^data:image\/\w+;base64,/, "");
-  // Convert to buffer from base64.
-  var buf = Buffer.from(data, 'base64');
-  // Create the tensor.
-  tensor = tf.node.decodeImage(buf, 3, 'int32');
-  return tensor;
-}
-
 // Saves tensor as JPG image file.
-FaceRecognizer.prototype.saveImageJPG = function saveImageJPG(tensor, fileName) {
+FaceRecognizer.prototype.saveTensorJPG = function saveTensorJPG(tensor, fileName) {
   // Default: images are saved in images folder.
   const filePath = "images/" + fileName;
   // Create the JPEG file.
@@ -188,6 +167,30 @@ FaceRecognizer.prototype.saveImageJPG = function saveImageJPG(tensor, fileName) 
     fs.writeFileSync(filePath, fileData);
   });
 
+}
+
+// Creates tensor out of image file.
+FaceRecognizer.prototype.loadImage = async function loadImage(image){
+
+  var buf;
+  // If image contains data header, then it is a dataURI.
+  if(isDataURI.test(image)){
+    // Remove data header.
+    var data = image.replace(/^data:image\/\w+;base64,/, "");
+    // Convert to buffer from base64.
+    buf = Buffer.from(data, 'base64');
+  }
+  else {
+    // Read image data from file.
+    buf = fs.readFileSync(image);
+  }
+
+  /*
+    Create tensor out of buffer using tfjs-node decodeImage function.
+    Arguments: Uint8Array (decoded image), color channel (default 0), data type (only int32 supported)
+  */
+  tensor = tf.node.decodeImage(buf, 3, 'int32');
+  return tensor;
 }
 
 /* Draw matches on image. Takes matches from getMatches() and results from detect().
