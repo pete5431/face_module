@@ -227,7 +227,7 @@ FaceRecognizer.prototype.drawFaceDetections = async function drawFaceDetections(
   // Get dataURI of image.
   const dataURL = newCanvas.toDataURL();
   // Convert to tensor using loadImageData function.
-  return this.loadImageData(dataURL);
+  return this.loadImage(dataURL);
 }
 
 module.exports = {
